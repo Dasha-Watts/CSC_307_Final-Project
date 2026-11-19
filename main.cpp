@@ -5,7 +5,6 @@
 #include <sstream>
 #include <string>
 
-// Read a whole number within the allowed range.
 bool readNumber(const std::string& prompt,
                 long long minimum,
                 long long maximum,
@@ -48,6 +47,47 @@ void displayMenu() {
               << "7. Save tickets\n"
               << "8. Load tickets\n"
               << "9. Exit\n";
+}
+
+bool readDescription(const std::string& prompt,
+                     std::string& description) {
+    while (true) {
+        std::cout << prompt;
+
+        if (!std::getline(std::cin, description)) {
+            return false;
+        }
+
+        if (description.find_first_not_of(" \t\r\n\v\f") !=
+            std::string::npos) {
+            return true;
+        }
+
+        std::cout << "Description cannot be empty.\n";
+    }
+}
+
+void displayTicket(const Ticket& ticket) {
+    const char* priorityName = "Unknown";
+
+    switch (ticket.priority) {
+        case 3:
+            priorityName = "High";
+            break;
+        case 2:
+            priorityName = "Medium";
+            break;
+        case 1:
+            priorityName = "Low";
+            break;
+    }
+
+    std::cout << "\nTicket ID: " << ticket.id
+              << "\nDescription: " << ticket.description
+              << "\nPriority: " << priorityName
+              << " (" << ticket.priority << ")"
+              << "\nArrival sequence: " << ticket.arrivalSequence
+              << '\n';
 }
 
 int main() {

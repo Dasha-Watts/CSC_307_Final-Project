@@ -5,13 +5,15 @@
 #include <limits>
 #include <sstream>
 #include <string>
-#include <utility>
 #include <vector>
 
-bool readNumber(const std::string& prompt,
-                long long minimum,
-                long long maximum,
-                long long& value) {
+namespace {
+
+const std::string filename = "tickets.csv";
+constexpr long long maxId = std::numeric_limits<long long>::max();
+
+bool readNumber(const std::string& prompt, long long minimum,
+                long long maximum, long long& value) {
     std::string line;
 
     while (true) {
@@ -35,8 +37,7 @@ bool readNumber(const std::string& prompt,
     }
 }
 
-bool readDescription(const std::string& prompt,
-                     std::string& description) {
+bool readDescription(const std::string& prompt, std::string& description) {
     while (true) {
         std::cout << prompt;
         if (!std::getline(std::cin, description)) {
@@ -50,6 +51,11 @@ bool readDescription(const std::string& prompt,
 
         std::cout << "Description cannot be empty.\n";
     }
+}
+
+bool readPriority(long long& priority) {
+    return readNumber("Priority (1=Low, 2=Medium, 3=High): ",
+                      1, 3, priority);
 }
 
 void displayMenu() {
@@ -70,21 +76,20 @@ void displayTicket(const Ticket& ticket) {
     const char* priorityName = "Unknown";
 
     switch (ticket.priority) {
-        case 3: priorityName = "High"; break;
-        case 2: priorityName = "Medium"; break;
         case 1: priorityName = "Low"; break;
+        case 2: priorityName = "Medium"; break;
+        case 3: priorityName = "High"; break;
     }
 
     std::cout << "\nTicket ID: " << ticket.id
               << "\nDescription: " << ticket.description
               << "\nPriority: " << priorityName
-              << " (" << ticket.priority << ")"
+              << " (" << ticket.priority << ')'
               << "\nArrival sequence: " << ticket.arrivalSequence
               << '\n';
 }
 
-bool saveCurrentTickets(const TicketMaxHeap& heap,
-                        const std::string& filename) {
+bool saveCurrentTickets(const TicketMaxHeap& heap) {
     std::string error;
 
     if (!TicketStorage::saveTickets(filename, heap.getAllTickets(), error)) {
@@ -99,16 +104,16 @@ bool saveCurrentTickets(const TicketMaxHeap& heap,
 int inputClosed(bool unsavedChanges) {
     std::cout << "\nInput closed. Exiting.\n";
     if (unsavedChanges) {
-        std::cout << "Unsaved changes were not written to disk.\n";
+        std::cout << "Unsaved changes were not written to "
+                  << filename << ".\n";
     }
     return 0;
 }
 
+}  // namespace
+
 int main() {
     TicketMaxHeap heap;
-    const std::string filename = "tickets.csv";
-    const long long maxId = std::numeric_limits<long long>::max();
-    const std::string priorityPrompt = "Priority (1=Low, 2=Medium, 3=High): ";
     bool unsavedChanges = false;
 
     while (true) {
@@ -125,24 +130,25 @@ int main() {
                 long long priority;
 
                 if (!readDescription("Description: ", description) ||
-                    !readNumber(priorityPrompt, 1, 3, priority)) {
+                    !readPriority(priority)) {
                     return inputClosed(unsavedChanges);
                 }
 
                 const long long id =
                     heap.insertTicket(description, static_cast<int>(priority));
 
-                if (id <= 0) {
-                    std::cout << "Could not add the ticket.\n";
-                } else {
+                if (id > 0) {
                     unsavedChanges = true;
                     std::cout << "Ticket added. ID: " << id << '\n';
+                } else {
+                    std::cout << "Could not add the ticket.\n";
                 }
                 break;
             }
 
             case 2: {
                 const auto ticket = heap.peekNext();
+
                 if (ticket) {
                     displayTicket(*ticket);
                 } else {
@@ -168,11 +174,12 @@ int main() {
 
             case 4: {
                 const auto tickets = heap.getAllTickets();
+
                 if (tickets.empty()) {
-                    std::cout << "No tickets to display.\n";
+                    std::cout << "No tickets are waiting.\n";
                 } else {
                     std::cout << "Tickets in heap order:\n";
-                    for (const Ticket& ticket : tickets) {
+                    for (const auto& ticket : tickets) {
                         displayTicket(ticket);
                     }
                 }
@@ -190,23 +197,24 @@ int main() {
                     std::cout << "Ticket not found.\n";
                     break;
                 }
+
                 displayTicket(*ticket);
 
-                long long field;
+                long long updateChoice;
                 if (!readNumber("Update 1=Description, 2=Priority, 3=Both: ",
-                                1, 3, field)) {
+                                1, 3, updateChoice)) {
                     return inputClosed(unsavedChanges);
                 }
 
                 std::string description = ticket->description;
                 long long priority = ticket->priority;
 
-                if ((field == 1 || field == 3) &&
+                if ((updateChoice == 1 || updateChoice == 3) &&
                     !readDescription("New description: ", description)) {
                     return inputClosed(unsavedChanges);
                 }
-                if ((field == 2 || field == 3) &&
-                    !readNumber(priorityPrompt, 1, 3, priority)) {
+                if ((updateChoice == 2 || updateChoice == 3) &&
+                    !readPriority(priority)) {
                     return inputClosed(unsavedChanges);
                 }
 
@@ -225,6 +233,25 @@ int main() {
                     return inputClosed(unsavedChanges);
                 }
 
+                const auto ticket = heap.findTicket(id);
+                if (!ticket) {
+                    std::cout << "Ticket not found.\n";
+                    break;
+                }
+
+                displayTicket(*ticket);
+
+                long long confirm;
+                if (!readNumber("Remove this ticket? 1=Yes, 2=No: ",
+                                1, 2, confirm)) {
+                    return inputClosed(unsavedChanges);
+                }
+
+                if (confirm == 2) {
+                    std::cout << "Removal canceled.\n";
+                    break;
+                }
+
                 if (heap.removeTicket(id)) {
                     unsavedChanges = true;
                     std::cout << "Ticket removed.\n";
@@ -235,7 +262,7 @@ int main() {
             }
 
             case 7: {
-                if (saveCurrentTickets(heap, filename)) {
+                if (saveCurrentTickets(heap)) {
                     unsavedChanges = false;
                 }
                 break;
@@ -244,10 +271,12 @@ int main() {
             case 8: {
                 if (unsavedChanges) {
                     long long confirm;
-                    if (!readNumber("Discard unsaved changes and load? "
-                                    "1=Yes, 2=Cancel: ", 1, 2, confirm)) {
+                    if (!readNumber(
+                            "Replace unsaved tickets with saved tickets? "
+                            "1=Yes, 2=No: ", 1, 2, confirm)) {
                         return inputClosed(unsavedChanges);
                     }
+
                     if (confirm == 2) {
                         std::cout << "Load canceled.\n";
                         break;
@@ -262,14 +291,11 @@ int main() {
                     break;
                 }
 
-                // Build separately so a failed load leaves active tickets intact.
-                TicketMaxHeap loadedHeap;
-                if (!loadedHeap.buildHeap(std::move(records))) {
-                    std::cout << "Invalid ticket records. Current tickets kept.\n";
+                if (!heap.buildHeap(records)) {
+                    std::cout << "Could not load tickets: invalid ticket data.\n";
                     break;
                 }
 
-                heap = std::move(loadedHeap);
                 unsavedChanges = false;
                 std::cout << "Tickets loaded from " << filename << ".\n";
                 break;
@@ -278,16 +304,17 @@ int main() {
             case 9: {
                 if (unsavedChanges) {
                     long long exitChoice;
-                    if (!readNumber("Unsaved changes: 1=Save and exit, "
-                                    "2=Exit without saving, 3=Cancel: ",
-                                    1, 3, exitChoice)) {
+                    if (!readNumber(
+                            "Unsaved changes: 1=Save and exit, "
+                            "2=Exit without saving, 3=Cancel: ",
+                            1, 3, exitChoice)) {
                         return inputClosed(unsavedChanges);
                     }
 
                     if (exitChoice == 3) {
                         break;
                     }
-                    if (exitChoice == 1 && !saveCurrentTickets(heap, filename)) {
+                    if (exitChoice == 1 && !saveCurrentTickets(heap)) {
                         break;
                     }
                 }

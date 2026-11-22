@@ -6,40 +6,8 @@
 #include <unordered_set>
 #include <utility>
 
-
-// TicketMaxHeap.cpp uses TicketMaxHeap.h to manage tickets using a Max Heap.
-// the heap organizes tickets by priority and arrival sequence.
-// helper functions confirms ticket information and maintain heap order.
-// the higherPriority function compares tickets to determine which comes first.
-     // High priority comes before Medium and Low priority.
-     // Older tickets come first when priorities are equal.
-// the findIndex function searches for a ticket using its ID.
-// the siftUp function moves higher priority tickets toward the top.
-// the siftDown function moves lower priority tickets toward the bottom.
-// the insertTicket function confirms and adds new tickets to the heap.
-     // assigns ticket IDs and arrival sequences.
-     // uses siftUp to maintain the correct heap order.
-// the findTicket function searches for and returns a ticket by ID.
-// the peekNext function returns the highest priority ticket without removing it.
-// the getAllTickets function returns all tickets currently stored in the heap.
-     // tickets are returned in heap order, not necessarily sorted order.
-// the updateTicket function changes an existing ticket's description or priority.
-     // uses siftUp or siftDown to restore the heap order.
-// the removeTicket function searches for and removes a ticket by ID.
-     // replaces the removed ticket with the last ticket when necessary.
-     // restores the heap order after removal.
-// the buildHeap function creates or rebuilds the heap from existing tickets.
-     // confirms ticket information and checks for duplicate IDs.
-     // uses siftDown to organize tickets by priority.
-// error handling prevents invalid ticket information from being added or updated.
-// functions return success or failure results depending on the operation.
-// the Max Heap ensures the highest priority ticket is handled first.
-
-
-
 namespace {
 
-// A ticket description must contain at least one non-whitespace character.
 bool isBlank(const std::string& text) {
     return text.empty() ||
            std::all_of(text.begin(), text.end(), [](unsigned char ch) {
@@ -60,8 +28,8 @@ TicketMaxHeap::TicketMaxHeap()
     : nextId(1), nextArrival(1) {
 }
 
-// Higher priority numbers come first. For equal priorities, the ticket
-// that arrived earlier (smaller arrivalSequence) comes first.
+// Higher priority comes first. For equal priorities, the earlier
+// arrival comes first.
 bool TicketMaxHeap::higherPriority(Ticket a, Ticket b) const {
     if (a.priority != b.priority) {
         return a.priority > b.priority;
@@ -145,7 +113,7 @@ std::optional<Ticket> TicketMaxHeap::peekNext() const {
 }
 
 std::vector<Ticket> TicketMaxHeap::getAllTickets() const {
-    // This returns the heap's internal array order, not a sorted order.
+    // Return the heap's internal array order.
     return heap;
 }
 
@@ -164,8 +132,6 @@ bool TicketMaxHeap::updateTicket(long long id,
     heap[index].description = std::move(description);
     heap[index].priority = priority;
 
-    // The priority may have increased or decreased, so restore the heap
-    // property in the correct direction.
     if (index > 0 && higherPriority(heap[index], heap[(index - 1) / 2])) {
         siftUp(index);
     } else {
@@ -198,21 +164,23 @@ bool TicketMaxHeap::removeTicket(long long id) {
 }
 
 bool TicketMaxHeap::buildHeap(std::vector<Ticket> records) {
-    // Confirms the complete input before changing the current heap.
+    // Validate every record before changing the current heap.
     std::unordered_set<long long> usedIds;
+    std::unordered_set<long long> usedArrivals;
     long long largestId = 0;
     long long largestArrival = 0;
 
     for (const Ticket& ticket : records) {
-        if (!isValidTicket(ticket) || !usedIds.insert(ticket.id).second) {
+        if (!isValidTicket(ticket) ||
+            !usedIds.insert(ticket.id).second ||
+            !usedArrivals.insert(ticket.arrivalSequence).second) {
             return false;
         }
+
         largestId = std::max(largestId, ticket.id);
         largestArrival = std::max(largestArrival, ticket.arrivalSequence);
     }
 
-    // Keep the existing heap unchanged if future generated values would
-    // overflow. Empty input resets the heap and its generated counters.
     if (largestId == std::numeric_limits<long long>::max() ||
         largestArrival == std::numeric_limits<long long>::max()) {
         return false;
@@ -220,7 +188,7 @@ bool TicketMaxHeap::buildHeap(std::vector<Ticket> records) {
 
     heap = std::move(records);
 
-    // Bottom-up heap construction is O(n).
+    // Restore heap order from the last parent up to the root.
     for (int i = static_cast<int>(heap.size()) / 2 - 1; i >= 0; --i) {
         siftDown(i);
     }
